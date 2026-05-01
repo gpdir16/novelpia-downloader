@@ -220,17 +220,25 @@ def fetch_episode_list(opener, work_id, page):
         title = _clean_text(title_m.group(1) if title_m else "", keep_breaks=False)
         title = re.sub(r"\s+", " ", title).strip()
         episodes.append(Episode(order=order, episode_id=episode_id, title=title))
-    return sorted(episodes, key=lambda e: e.order)
+    max_page_m = re.search(r"max_page\s*=\s*[\"'](\d+)[\"']", html_text)
+    max_page = int(max_page_m.group(1)) if max_page_m else 1
+    return sorted(episodes, key=lambda e: e.order), max_page
 
 
 def iter_episode_pages(opener, work_id):
+    seen = set()
     page = 0
-    while True:
-        items = fetch_episode_list(opener, work_id, page)
-        if not items:
+    items, max_page = fetch_episode_list(opener, work_id, page)
+    while items:
+        new_items = [e for e in items if e.episode_id not in seen]
+        if not new_items:
             return
-        yield items
+        seen.update(e.episode_id for e in new_items)
+        yield new_items
         page += 1
+        if page >= max_page:
+            return
+        items, _ = fetch_episode_list(opener, work_id, page)
 
 
 def episode_stem(episode, order_prefix):
